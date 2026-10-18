@@ -119,6 +119,42 @@ class OfflineIntegration(unittest.TestCase):
         self.assertEqual(code, 200)
         self.assertEqual(data["total"], 0)
 
+    def test_public_cache_exposes_unknown_evidence_with_provenance(self):
+        from ainexus.discovery import parse_openrouter, SOURCES, CACHE_SECONDS
+
+        fetched_at = 1700000000
+        result = {"provider_id": "openrouter", "source_url": SOURCES["openrouter"],
+                  "fetched_at": fetched_at, "models": parse_openrouter({"data": [{
+                      "id": "trial:free", "context_length": 8192,
+                      "pricing": {"prompt": "0", "completion": "0"},
+                      "free_eligibility": "verified", "remaining_quota": 1000,
+                      "requires_paid_account": True, "free_trial_months": 1,
+                  }]})}
+        self.assertEqual(result["models"][0]["price_status"], "reported_unverified")
+        with patch.object(nexus, "fetch_public_models", return_value=result) as fetch:
+            code, response, _ = self.request("/discover/public", {"provider": "openrouter"})
+            self.assertEqual(code, 200)
+            self.assertFalse(response["cached"])
+            fetch.assert_called_once_with("openrouter")
+        for age in (0, CACHE_SECONDS):
+            with self.subTest(age=age), patch.object(nexus.time, "time", return_value=fetched_at + age):
+                code, response, _ = self.request("/discovery/public")
+                self.assertEqual(code, 200)
+                model = response["models"][0]
+                self.assertEqual(model["id"], "trial:free")
+                self.assertEqual(model["context_window"], 8192)
+                self.assertEqual(model["provider_id"], "openrouter")
+                self.assertEqual(model["source_url"], SOURCES["openrouter"])
+                self.assertEqual(model["fetched_at"], fetched_at)
+                self.assertEqual(model["age_seconds"], age)
+                self.assertEqual(model["stale"], age >= CACHE_SECONDS)
+                self.assertEqual(model["price_status"], "unknown")
+                self.assertEqual(model["pricing"], {"input_per_token_usd": None,
+                                                    "output_per_token_usd": None})
+                self.assertEqual(model["free_eligibility"], "unknown")
+                self.assertIsNone(model["remaining_quota"])
+                self.assertIsNone(model["tool_use_verified"])
+
     def test_discover_execute_persist(self):
         code, result, _ = self.request("/discover/local", {})
         self.assertEqual(code, 200)

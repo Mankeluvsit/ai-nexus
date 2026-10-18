@@ -10,6 +10,19 @@ AI Nexus uses an independently implemented **Flux-inspired** design standard for
 
 Catalog metadata now retains a strict distinction between a **provider-reported price** and verified free eligibility: a reported zero price does not imply that an account can access a model for free. Quotas, remaining credits, tool-calling results, and verified compatibility are `unknown` until separately established. Normalization is implemented in `ainexus/normalization.py` and covered by offline tests.
 
+The current contract distinguishes string states from nullable measurements:
+
+| Field | Normalized public metadata | Cached `GET /discovery/public` record |
+| --- | --- | --- |
+| `pricing.input_per_token_usd`, `pricing.output_per_token_usd` | Nonnegative finite decimal strings, or `null` independently | Both `null`; prices are not persisted |
+| `price_status` | `reported_unverified` only when both prices are valid; otherwise `unknown` | `unknown` |
+| `free_eligibility` | `unknown` | `unknown` |
+| `remaining_quota`, `tool_use_verified` | `null` (unknown) | `null` (unknown) |
+
+The normalizer cannot produce a `verified` state. Model names ending in `:free`, paid-account requirements, undisclosed quotas, introductory credits, first-month offers, advertised tool support, and upstream fields claiming verification never establish account eligibility. Unrecognized fields are discarded, not independently verified. A missing price is not zero; a reported zero is not an allowance. No remaining-credit or account-eligibility measurement is currently exposed.
+
+Cached records retain `provider_id`, `source_url`, and `fetched_at` (Unix seconds), plus `age_seconds` and `stale`. These describe catalog retrieval provenance and freshness, not the date or scope of verification of any claim. Fresh and stale records both retain unknown evidence states. `POST /discover/public` returns refresh metadata/count only, not normalized model records. The cache's loss of reported pricing is intentional in the current schema; clients must not reconstruct it from a model ID or refresh date.
+
 ## v0.4 routing policy (experimental)
 
 `ainexus/router.py` implements a **decision-only**, local-first model selector. The default policy blocks all cloud models and treats unknown pricing as ineligible. Cloud selection requires explicit `cloud_enabled=True` and verified price evidence, plus per-token input/output price caps (default zero). An additional opt-in is required to consider provider-reported, unverified zero pricing. Context requirements are fail-closed when metadata is missing. This module **does not perform inference, verify remaining quotas, or authorize spending**; do not treat a selection as proof of actual provider availability. Run `python3 -m unittest discover -s tests -v` for policy tests.

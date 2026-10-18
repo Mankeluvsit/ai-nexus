@@ -123,6 +123,15 @@ class Handler(BaseHTTPRequestHandler):
                 refreshed = [dict(x) for x in con.execute("SELECT * FROM public_refresh ORDER BY provider_id")]
             now = int(time.time())
             for record in records:
+                # The cache retains identity/provenance, not reported prices or
+                # account-level evidence. Make that absence explicit to clients.
+                record.update({
+                    "pricing": {"input_per_token_usd": None, "output_per_token_usd": None},
+                    "price_status": "unknown",
+                    "free_eligibility": "unknown",
+                    "remaining_quota": None,
+                    "tool_use_verified": None,
+                })
                 record["age_seconds"] = max(0, now - record["fetched_at"])
                 record["stale"] = record["age_seconds"] >= CACHE_SECONDS
             return self.respond(200, {"models": records, "refreshes": refreshed, "total": total, "limit": limit, "offset": offset})
