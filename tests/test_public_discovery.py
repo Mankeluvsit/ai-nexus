@@ -38,10 +38,14 @@ class DiscoveryTests(unittest.TestCase):
     def test_schema_validation(self):
         with self.assertRaises(ValueError):
             parse_openrouter({"foo": []})
-        self.assertEqual(parse_openrouter({"data": [{"id": "test", "context_length": 128000},
-                                                     {"id": "bad", "context_length": True},
-                                                     {"id": ""}, {"other": 3}]}),
-                         [{"id": "bad", "context_window": None}, {"id": "test", "context_window": 128000}])
+        records = parse_openrouter({"data": [{"id": "test", "context_length": 128000},
+                                             {"id": "bad", "context_length": True},
+                                             {"id": ""}, {"other": 3}]})
+        self.assertEqual([item["id"] for item in records], ["bad", "test"])
+        self.assertIsNone(records[0]["context_window"])
+        self.assertEqual(records[1]["context_window"], 128000)
+        self.assertEqual(records[0]["free_eligibility"], "unknown")
+        self.assertIsNone(records[0]["remaining_quota"])
 
     def test_allowlist_and_payload_limit(self):
         with self.assertRaises(ValueError):
