@@ -8,6 +8,7 @@ import urllib.request
 from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from ipaddress import ip_address
 from urllib.parse import urlsplit
 
 DB = os.getenv("AI_NEXUS_DB", "ai-nexus.sqlite3")
@@ -46,7 +47,10 @@ def fetch_json(url, method="GET", data=None):
             raise ValueError("Unexpected upstream status")
         if int(response.headers.get("Content-Length", "0")) > 2_000_000:
             raise ValueError("Upstream response too large")
-        return json.loads(response.read(2_000_001))
+        payload = response.read(2_000_001)
+        if len(payload) > 2_000_000:
+            raise ValueError("Upstream response too large")
+        return json.loads(payload)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -56,6 +60,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type + "; charset=utf-8")
         self.send_header("Content-Length", str(len(contents)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         self.wfile.write(contents)
@@ -77,6 +84,16 @@ class Handler(BaseHTTPRequestHandler):
         return self.respond(404, {"error": "Not found"})
 
     def do_POST(self):
+        origin = self.headers.get("Origin")
+        if origin:
+            expected = "http://" + self.headers.get("Host", "")
+            if origin != expected and origin != expected.replace("http://", "https://", 1):
+                return self.respond(403, {"error": "Cross-origin request denied"})
+        site = self.headers.get("Sec-Fetch-Site", "")
+        if site and site not in ("same-origin", "none"):
+            return self.respond(403, {"error": "Cross-site request denied"})
+        if self.path == "/execute" and self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
+            return self.respond(415, {"error": "JSON content type required"})
         if self.path not in ("/discover/local", "/execute"):
             return self.respond(404, {"error": "Not found"})
         try:
@@ -116,7 +133,7 @@ class Handler(BaseHTTPRequestHandler):
         except (urllib.error.URLError, TimeoutError) as exc:
             return self.respond(502, {"error": "Local inference endpoint unavailable: " + type(exc).__name__})
         except (ValueError, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-            return self.respond(502, {"error": "Invalid upstream response or request: " + str(exc)[:180]})
+            return self.respond(502, {"error": "Invalid upstream response or request: " + type(exc).__name__})
 
     def log_message(self, fmt, *args):
         print("%s - %s" % (self.address_string(), fmt % args))
@@ -125,6 +142,8 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     host = os.getenv("AI_NEXUS_HOST", "127.0.0.1")
     port = int(os.getenv("AI_NEXUS_PORT", "8765"))
+    if host != "localhost" and not ip_address(host).is_loopback:
+        raise SystemExit("AI Nexus v0.2 must bind to loopback; public binding requires authentication first")
     parsed = urlsplit(ENDPOINT)
     if parsed.scheme not in ("http", "https") or parsed.hostname not in ("127.0.0.1", "localhost", "::1"):
         raise SystemExit("Local endpoint must use loopback; remote provider integration is not enabled in v0.1")
