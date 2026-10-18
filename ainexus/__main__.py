@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from ipaddress import ip_address
 from .catalog import get_providers, CATALOG
+from .discovery import SOURCES, CACHE_SECONDS, fetch_public_models
 from urllib.parse import urlsplit
 
 DB = os.getenv("AI_NEXUS_DB", "ai-nexus.sqlite3")
@@ -31,6 +32,8 @@ def database():
     connection = sqlite3.connect(DB, timeout=10)
     connection.row_factory = sqlite3.Row
     connection.execute("CREATE TABLE IF NOT EXISTS models (id TEXT PRIMARY KEY, discovered_at INTEGER NOT NULL)")
+    connection.execute("CREATE TABLE IF NOT EXISTS public_models (provider_id TEXT NOT NULL, id TEXT NOT NULL, context_window INTEGER, fetched_at INTEGER NOT NULL, source_url TEXT NOT NULL, PRIMARY KEY(provider_id,id))")
+    connection.execute("CREATE TABLE IF NOT EXISTS public_refresh (provider_id TEXT PRIMARY KEY, fetched_at INTEGER NOT NULL, source_url TEXT NOT NULL)")
     connection.execute("CREATE TABLE IF NOT EXISTS executions (id INTEGER PRIMARY KEY, model TEXT NOT NULL, elapsed_ms INTEGER NOT NULL, status TEXT NOT NULL, prompt_tokens INTEGER, completion_tokens INTEGER, created_at INTEGER NOT NULL)")
     connection.commit()
     return connection
@@ -77,6 +80,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(200, get_providers())
         if self.path == "/catalog/capabilities":
             return self.respond(200, sorted({c for p in CATALOG for c in p.capabilities}))
+        if self.path == "/discovery/public":
+            with closing(database()) as con:
+                records = [dict(x) for x in con.execute("SELECT provider_id,id,context_window,fetched_at,source_url FROM public_models ORDER BY provider_id,id LIMIT 10000")]
+                refreshed = [dict(x) for x in con.execute("SELECT * FROM public_refresh ORDER BY provider_id")]
+            return self.respond(200, {"models": records, "refreshes": refreshed})
         if self.path == "/providers":
             return self.respond(200, [{"id": i, "name": n, "docs": d, "verification": "not_checked"} for i, n, d in PROVIDERS])
         if self.path in ("/models", "/executions"):
@@ -99,7 +107,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(403, {"error": "Cross-site request denied"})
         if self.path == "/execute" and self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
             return self.respond(415, {"error": "JSON content type required"})
-        if self.path not in ("/discover/local", "/execute"):
+        if self.path not in ("/discover/local", "/discover/public", "/execute"):
             return self.respond(404, {"error": "Not found"})
         try:
             size = int(self.headers.get("Content-Length", "0"))
@@ -108,6 +116,25 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(size)) if size else {}
             if not isinstance(body, dict):
                 return self.respond(400, {"error": "JSON object required"})
+            if self.path == "/discover/public":
+                provider = body.get("provider")
+                if not isinstance(provider, str) or provider not in SOURCES:
+                    return self.respond(400, {"error": "Unsupported public catalog"})
+                with closing(database()) as con:
+                    row = con.execute("SELECT fetched_at FROM public_refresh WHERE provider_id=?", (provider,)).fetchone()
+                    if row and int(time.time()) - row["fetched_at"] < CACHE_SECONDS:
+                        count = con.execute("SELECT count(*) FROM public_models WHERE provider_id=?", (provider,)).fetchone()[0]
+                        return self.respond(200, {"provider_id": provider, "count": count, "cached": True})
+                result = fetch_public_models(provider)
+                with closing(database()) as con:
+                    con.execute("BEGIN IMMEDIATE")
+                    con.execute("DELETE FROM public_models WHERE provider_id=?", (provider,))
+                    con.executemany("INSERT INTO public_models VALUES (?,?,?,?,?)", [
+                        (provider, model["id"], model["context_window"], result["fetched_at"], result["source_url"])
+                        for model in result["models"]])
+                    con.execute("INSERT OR REPLACE INTO public_refresh VALUES (?,?,?)", (provider, result["fetched_at"], result["source_url"]))
+                    con.commit()
+                return self.respond(200, {"provider_id": provider, "count": len(result["models"]), "cached": False})
             if self.path == "/discover/local":
                 upstream = fetch_json(ENDPOINT + "/models")
                 models = upstream.get("data", [])
