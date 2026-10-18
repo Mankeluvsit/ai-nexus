@@ -2,6 +2,10 @@
 
 Local-first AI resource discovery and execution platform.
 
+## Design standard
+
+AI Nexus uses an independently implemented **Flux-inspired** design standard for its dashboards, resource tools, model pages, agents, research workspaces, settings, and future modules. See [Design System](docs/DESIGN_SYSTEM.md) for palette tokens, responsive patterns, component contracts, accessibility, and licensing boundaries. The current UI is an early prototype; the complete shared React component library is not yet built.
+
 ## v0.1 foundation
 
 A dependency-free Python HTTP API with SQLite persistence. It provides a seeded registry of cloud AI providers, probes a user-specified local OpenAI-compatible model endpoint, and can execute a test chat request. No cloud request or paid API call is made automatically.
