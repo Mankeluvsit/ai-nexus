@@ -11,7 +11,7 @@ from pathlib import Path
 from ipaddress import ip_address
 from .catalog import get_providers, CATALOG
 from .discovery import SOURCES, CACHE_SECONDS, fetch_public_models
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 
 DB = os.getenv("AI_NEXUS_DB", "ai-nexus.sqlite3")
 ENDPOINT = os.getenv("AI_NEXUS_LOCAL_ENDPOINT", "http://127.0.0.1:1234/v1").rstrip("/")
@@ -80,7 +80,40 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(200, get_providers())
         if self.path == "/catalog/capabilities":
             return self.respond(200, sorted({c for p in CATALOG for c in p.capabilities}))
-        if self.path == "/discovery/public":
+        if self.path.split("?", 1)[0] == "/discovery/public":
+            query = parse_qs(urlsplit(self.path).query)
+            if any(k not in ("q", "limit", "offset", "provider") for k in query):
+                return self.respond(400, {"error": "Unsupported query parameter"})
+            try:
+                limit = int(query.get("limit", ["100"])[0])
+                offset = int(query.get("offset", ["0"])[0])
+            except ValueError:
+                return self.respond(400, {"error": "Invalid pagination"})
+            if not 1 <= limit <= 200 or offset < 0 or offset > 1000000:
+                return self.respond(400, {"error": "Pagination out of bounds"})
+            search = query.get("q", [""])[0].strip()
+            provider = query.get("provider", [""])[0].strip()
+            if len(search) > 128 or len(provider) > 64:
+                return self.respond(400, {"error": "Filter too long"})
+            where = []
+            params = []
+            if search:
+                where.append("id LIKE ? ESCAPE '!'")
+                params.append("%" + search.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%")
+            if provider:
+                where.append("provider_id = ?")
+                params.append(provider)
+            clause = " WHERE " + " AND ".join(where) if where else ""
+            with closing(database()) as con:
+                total = con.execute("SELECT COUNT(*) FROM public_models" + clause, params).fetchone()[0]
+                records = [dict(x) for x in con.execute("SELECT provider_id,id,context_window,fetched_at,source_url FROM public_models" + clause + " ORDER BY provider_id,id LIMIT ? OFFSET ?", params + [limit, offset])]
+                refreshed = [dict(x) for x in con.execute("SELECT * FROM public_refresh ORDER BY provider_id")]
+            now = int(time.time())
+            for record in records:
+                record["age_seconds"] = max(0, now - record["fetched_at"])
+                record["stale"] = record["age_seconds"] >= CACHE_SECONDS
+            return self.respond(200, {"models": records, "refreshes": refreshed, "total": total, "limit": limit, "offset": offset})
+        if self.path == "/discovery/public/legacy":
             with closing(database()) as con:
                 records = [dict(x) for x in con.execute("SELECT provider_id,id,context_window,fetched_at,source_url FROM public_models ORDER BY provider_id,id LIMIT 10000")]
                 refreshed = [dict(x) for x in con.execute("SELECT * FROM public_refresh ORDER BY provider_id")]
