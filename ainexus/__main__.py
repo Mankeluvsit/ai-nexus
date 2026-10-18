@@ -9,6 +9,7 @@ from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from ipaddress import ip_address
+from .catalog import get_providers, CATALOG
 from urllib.parse import urlsplit
 
 DB = os.getenv("AI_NEXUS_DB", "ai-nexus.sqlite3")
@@ -72,6 +73,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(200, HTML, "text/html")
         if self.path == "/health":
             return self.respond(200, {"ok": True, "version": "0.1.0"})
+        if self.path == "/catalog":
+            return self.respond(200, get_providers())
+        if self.path == "/catalog/capabilities":
+            return self.respond(200, sorted({c for p in CATALOG for c in p.capabilities}))
         if self.path == "/providers":
             return self.respond(200, [{"id": i, "name": n, "docs": d, "verification": "not_checked"} for i, n, d in PROVIDERS])
         if self.path in ("/models", "/executions"):
