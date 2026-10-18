@@ -22,6 +22,41 @@ class FoundationTests(unittest.TestCase):
                     row = con.execute("SELECT id FROM models").fetchone()
                     self.assertEqual(row["id"], "local-test")
 
+    def test_dashboard_views_and_accessibility(self):
+        from html.parser import HTMLParser
+
+        class Inspector(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.views = set()
+                self.ids = set()
+                self.buttons = []
+            def handle_starttag(self, tag, attrs):
+                a = dict(attrs)
+                if "data-view" in a:
+                    self.views.add(a["data-view"])
+                if "id" in a:
+                    self.ids.add(a["id"])
+                if tag == "button":
+                    self.buttons.append(a)
+
+        parsed = Inspector()
+        parsed.feed(app.HTML)
+        self.assertEqual(parsed.views, {"overview", "providers", "models", "execute", "activity", "settings"})
+        self.assertIn("main", parsed.ids)
+        self.assertIn("message", parsed.ids)
+        self.assertIn("aria-live", app.HTML)
+        self.assertIn("prefers-reduced-motion", app.HTML)
+        self.assertIn("data-theme", app.HTML)
+        self.assertIn("data-density", app.HTML)
+        self.assertIn('rel="noopener noreferrer"', app.HTML.replace('link.rel="noopener noreferrer"', 'rel="noopener noreferrer"'))
+
+    def test_static_ui_is_packaged(self):
+        from pathlib import Path
+        path = Path(app.__file__).with_name("ui.html")
+        self.assertTrue(path.is_file())
+        self.assertEqual(path.read_text(encoding="utf-8"), app.HTML)
+
     def test_catalog_documentation(self):
         self.assertGreaterEqual(len(app.PROVIDERS), 5)
         self.assertTrue(all(url.startswith("https://") for _, _, url in app.PROVIDERS))
