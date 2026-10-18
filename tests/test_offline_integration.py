@@ -85,6 +85,17 @@ class OfflineIntegration(unittest.TestCase):
         self.assertGreaterEqual(len(providers), 5)
         self.assertTrue(all(p["verification"] == "not_checked" for p in providers))
 
+    def test_catalog_api(self):
+        code, providers, _ = self.request("/catalog")
+        self.assertEqual(code, 200)
+        self.assertGreaterEqual(len(providers), 12)
+        self.assertTrue(all(p["free_allowance"] == "unknown" for p in providers))
+        self.assertTrue(all(p["checked_at"] is None for p in providers))
+        code, capabilities, _ = self.request("/catalog/capabilities")
+        self.assertEqual(code, 200)
+        self.assertIn("search", capabilities)
+        self.assertIn("tools", capabilities)
+
     def test_discover_execute_persist(self):
         code, result, _ = self.request("/discover/local", {})
         self.assertEqual(code, 200)
