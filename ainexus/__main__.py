@@ -113,11 +113,6 @@ class Handler(BaseHTTPRequestHandler):
                 record["age_seconds"] = max(0, now - record["fetched_at"])
                 record["stale"] = record["age_seconds"] >= CACHE_SECONDS
             return self.respond(200, {"models": records, "refreshes": refreshed, "total": total, "limit": limit, "offset": offset})
-        if self.path == "/discovery/public/legacy":
-            with closing(database()) as con:
-                records = [dict(x) for x in con.execute("SELECT provider_id,id,context_window,fetched_at,source_url FROM public_models ORDER BY provider_id,id LIMIT 10000")]
-                refreshed = [dict(x) for x in con.execute("SELECT * FROM public_refresh ORDER BY provider_id")]
-            return self.respond(200, {"models": records, "refreshes": refreshed})
         if self.path == "/providers":
             return self.respond(200, [{"id": i, "name": n, "docs": d, "verification": "not_checked"} for i, n, d in PROVIDERS])
         if self.path in ("/models", "/executions"):
