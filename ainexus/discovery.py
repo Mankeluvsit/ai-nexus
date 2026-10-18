@@ -7,6 +7,7 @@ import json
 import time
 import urllib.request
 from urllib.parse import urlsplit
+from .normalization import normalize_openrouter
 
 SOURCES = {
     "openrouter": "https://openrouter.ai/api/v1/models",
@@ -27,13 +28,10 @@ def parse_openrouter(data):
     for item in data["data"]:
         if not isinstance(item, dict):
             continue
-        identifier = item.get("id")
-        if not isinstance(identifier, str) or not (1 <= len(identifier) <= 256):
+        normalized = normalize_openrouter(item)
+        if normalized is None:
             continue
-        context = item.get("context_length")
-        if isinstance(context, bool) or not isinstance(context, int) or context <= 0:
-            context = None
-        models.append({"id": identifier, "context_window": context})
+        models.append(normalized)
         if len(models) >= 10000:
             break
     return sorted(models, key=lambda x: x["id"])
