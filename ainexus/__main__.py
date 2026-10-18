@@ -11,6 +11,7 @@ from pathlib import Path
 from ipaddress import ip_address
 from .catalog import get_providers, CATALOG
 from .discovery import SOURCES, CACHE_SECONDS, fetch_public_models
+from .connectors import configured_connectors, fetch_authenticated_models
 from urllib.parse import urlsplit, parse_qs
 
 DB = os.getenv("AI_NEXUS_DB", "ai-nexus.sqlite3")
@@ -76,6 +77,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(200, HTML, "text/html")
         if self.path == "/health":
             return self.respond(200, {"ok": True, "version": "0.1.0"})
+        if self.path == "/connectors":
+            return self.respond(200, configured_connectors())
         if self.path == "/catalog":
             return self.respond(200, get_providers())
         if self.path == "/catalog/capabilities":
@@ -135,7 +138,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(403, {"error": "Cross-site request denied"})
         if self.path == "/execute" and self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
             return self.respond(415, {"error": "JSON content type required"})
-        if self.path not in ("/discover/local", "/discover/public", "/execute"):
+        if self.path not in ("/discover/local", "/discover/public", "/discover/authenticated", "/execute"):
             return self.respond(404, {"error": "Not found"})
         try:
             size = int(self.headers.get("Content-Length", "0"))
@@ -144,6 +147,17 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(size)) if size else {}
             if not isinstance(body, dict):
                 return self.respond(400, {"error": "JSON object required"})
+            if self.path == "/discover/authenticated":
+                provider = body.get("provider")
+                if not isinstance(provider, str) or provider not in {p["id"] for p in configured_connectors()}:
+                    return self.respond(400, {"error": "Unsupported provider"})
+                if not any(p["id"] == provider and p["configured"] for p in configured_connectors()):
+                    return self.respond(400, {"error": "Credential not configured"})
+                result = fetch_authenticated_models(provider)
+                return self.respond(200, {"provider_id": provider, "count": len(result["models"]),
+                                          "models": result["models"][:200],
+                                          "source_url": result["source_url"],
+                                          "persisted": False})
             if self.path == "/discover/public":
                 provider = body.get("provider")
                 if not isinstance(provider, str) or provider not in SOURCES:
