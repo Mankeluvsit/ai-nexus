@@ -8,6 +8,8 @@ AI Nexus uses an independently implemented **Flux-inspired** design standard for
 
 ## v0.3 provider catalog (in progress)
 
+The Discovery Hub now supports an opt-in **OpenRouter public model-list refresh**. Click **Refresh OpenRouter catalog** (no API key or inference request) to fetch a read-only HTTPS catalog, reject redirects, validate model IDs/context lengths, and store the result in SQLite with source URL and refresh timestamp. Repeated requests within 1 hour use the cached results. The catalogue has a 2 MB response limit and may fail safely if the remote listing is larger. This does **not** establish whether a model is free, currently available to your account, supports tools, or has remaining quota. Public catalog refresh does not run automatically and is never a paid inference call. API: `GET /discovery/public`, `POST /discover/public` with `{"provider":"openrouter"}`.
+
 The Discovery Hub now reads `GET /catalog`: an evidence-aware registry of 12 provider and research-service entries with supported capability categories and official documentation links. `GET /catalog/capabilities` lists available tags. **All account eligibility, quotas, and free allowances default to unknown** until separately verified; no keys are requested or used. This is a curated offline catalog, **not** live provider discovery or automatic model enrollment. See `ainexus/catalog.py`.
 
 ## v0.2 dashboard and offline verification
