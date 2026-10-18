@@ -59,6 +59,14 @@ def fetch_json(url, method="GET", data=None):
 
 
 class Handler(BaseHTTPRequestHandler):
+    def valid_host(self):
+        value = self.headers.get("Host", "")
+        try:
+            host = urlsplit("http://" + value).hostname
+        except ValueError:
+            return False
+        return host in ("127.0.0.1", "localhost", "::1")
+
     def respond(self, status, payload, content_type="application/json"):
         contents = json.dumps(payload).encode() if content_type == "application/json" else payload.encode()
         self.send_response(status)
@@ -73,6 +81,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(contents)
 
     def do_GET(self):
+        if not self.valid_host():
+            return self.respond(403, {"error": "Local host required"})
         if self.path == "/":
             return self.respond(200, HTML, "text/html")
         if self.path == "/health":
@@ -128,6 +138,8 @@ class Handler(BaseHTTPRequestHandler):
         return self.respond(404, {"error": "Not found"})
 
     def do_POST(self):
+        if not self.valid_host():
+            return self.respond(403, {"error": "Local host required"})
         origin = self.headers.get("Origin")
         if origin:
             expected = "http://" + self.headers.get("Host", "")
