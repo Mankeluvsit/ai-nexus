@@ -6,6 +6,10 @@ Local-first AI resource discovery and execution platform.
 
 AI Nexus uses an independently implemented **Flux-inspired** design standard for its dashboards, resource tools, model pages, agents, research workspaces, settings, and future modules. See [Design System](docs/DESIGN_SYSTEM.md) for palette tokens, responsive patterns, component contracts, accessibility, and licensing boundaries. The current UI is an early prototype; the complete shared React component library is not yet built.
 
+## Evidence-aware model normalization
+
+Catalog metadata now retains a strict distinction between a **provider-reported price** and verified free eligibility: a reported zero price does not imply that an account can access a model for free. Quotas, remaining credits, tool-calling results, and verified compatibility are `unknown` until separately established. Normalization is implemented in `ainexus/normalization.py` and covered by offline tests.
+
 ## Opt-in authenticated catalogs (experimental)
 
 Read-only model listing is supported for allowlisted Groq, OpenRouter, Mistral and Cerebras endpoints. Supply keys **locally** via environment variables `AI_NEXUS_GROQ_KEY`, `AI_NEXUS_OPENROUTER_KEY`, `AI_NEXUS_MISTRAL_KEY`, and `AI_NEXUS_CEREBRAS_KEY`. Do not put real keys in GitHub, shell history, screenshots, or shared logs. Never use credentials from another application without that provider's authorization. Keys are transmitted only to their provider's fixed HTTPS endpoint; redirects are disallowed. No model inference or billable requests are issued by this connector, though provider account terms may apply to catalog reads.
