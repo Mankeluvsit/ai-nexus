@@ -6,6 +6,10 @@ Local-first AI resource discovery and execution platform.
 
 AI Nexus uses an independently implemented **Flux-inspired** design standard for its dashboards, resource tools, model pages, agents, research workspaces, settings, and future modules. See [Design System](docs/DESIGN_SYSTEM.md) for palette tokens, responsive patterns, component contracts, accessibility, and licensing boundaries. The current UI is an early prototype; the complete shared React component library is not yet built.
 
+## v0.3 provider catalog (in progress)
+
+The Discovery Hub now reads `GET /catalog`: an evidence-aware registry of 12 provider and research-service entries with supported capability categories and official documentation links. `GET /catalog/capabilities` lists available tags. **All account eligibility, quotas, and free allowances default to unknown** until separately verified; no keys are requested or used. This is a curated offline catalog, **not** live provider discovery or automatic model enrollment. See `ainexus/catalog.py`.
+
 ## v0.2 dashboard and offline verification
 
 Six responsive views are available: Overview, Discovery Hub, Model Explorer, Execution Lab, Activity, and Preferences. The interface supports dark, light and system appearance plus compact/comfortable density. Preferences are stored in the local browser. The dashboard is rendered from `ainexus/ui.html` and serves on loopback only.
@@ -28,7 +32,9 @@ Optional environment: `AI_NEXUS_HOST` (default `127.0.0.1`), `AI_NEXUS_PORT` (de
 ### API
 
 - `GET /health` — health check
-- `GET /providers` — curated starter providers (catalog entries, not verified live quotas)
+- `GET /providers` — original compatible seven-provider listing (legacy)
+- `GET /catalog` — expanded registry of provider capabilities and provenance status
+- `GET /catalog/capabilities` — available capability tags
 - `GET /models` — locally discovered model records
 - `POST /discover/local` — query local `/models` and save the returned IDs
 - `POST /execute` — execute a chat request on an **already discovered** local model; body `{"model":"...", "prompt":"..."}`
