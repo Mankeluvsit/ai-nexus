@@ -10,6 +10,10 @@ AI Nexus uses an independently implemented **Flux-inspired** design standard for
 
 Catalog metadata now retains a strict distinction between a **provider-reported price** and verified free eligibility: a reported zero price does not imply that an account can access a model for free. Quotas, remaining credits, tool-calling results, and verified compatibility are `unknown` until separately established. Normalization is implemented in `ainexus/normalization.py` and covered by offline tests.
 
+## v0.4 routing policy (experimental)
+
+`ainexus/router.py` implements a **decision-only**, local-first model selector. The default policy blocks all cloud models and treats unknown pricing as ineligible. Cloud selection requires explicit `cloud_enabled=True` and verified price evidence, plus per-token input/output price caps (default zero). An additional opt-in is required to consider provider-reported, unverified zero pricing. Context requirements are fail-closed when metadata is missing. This module **does not perform inference, verify remaining quotas, or authorize spending**; do not treat a selection as proof of actual provider availability. Run `python3 -m unittest discover -s tests -v` for policy tests.
+
 ## Opt-in authenticated catalogs (experimental)
 
 Read-only model listing is supported for allowlisted Groq, OpenRouter, Mistral and Cerebras endpoints. Supply keys **locally** via environment variables `AI_NEXUS_GROQ_KEY`, `AI_NEXUS_OPENROUTER_KEY`, `AI_NEXUS_MISTRAL_KEY`, and `AI_NEXUS_CEREBRAS_KEY`. Do not put real keys in GitHub, shell history, screenshots, or shared logs. Never use credentials from another application without that provider's authorization. Keys are transmitted only to their provider's fixed HTTPS endpoint; redirects are disallowed. No model inference or billable requests are issued by this connector, though provider account terms may apply to catalog reads.
