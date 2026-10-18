@@ -134,6 +134,12 @@ class OfflineIntegration(unittest.TestCase):
         with closing(nexus.database()) as con:
             self.assertEqual(con.execute("SELECT COUNT(*) FROM executions").fetchone()[0], 1)
 
+    def test_untrusted_host_rejected(self):
+        code, _, _ = self.request("/health", headers={"Host": "evil.example"})
+        self.assertEqual(code, 403)
+        code, _, _ = self.request("/discover/local", {}, {"Content-Type": "application/json", "Host": "evil.example"})
+        self.assertEqual(code, 403)
+
     def test_invalid_model_and_origin(self):
         code, _, _ = self.request("/execute", {"model": "unknown", "prompt": "x"})
         self.assertEqual(code, 400)
