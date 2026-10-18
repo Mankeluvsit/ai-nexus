@@ -22,27 +22,7 @@ PROVIDERS = [
     ("cerebras", "Cerebras", "https://inference-docs.cerebras.ai/"),
     ("nvidia", "NVIDIA NIM", "https://docs.api.nvidia.com/"),
 ]
-HTML = """<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AI Nexus · v0.1</title><style>
-:root{color-scheme:dark;--bg:#0b1020;--surface:#121b2e;--raised:#1b2840;--border:#2c3b55;--text:#e9f0fa;--muted:#a9b8cf;--primary:#7c86ff;--accent:#30d0c0;--focus:#a6d7ff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse 60% 35% at 85% 0%,#25295655,transparent),var(--bg);color:var(--text);line-height:1.55}
-body:before{content:"AI NEXUS  /  CONTROL CENTER";display:block;padding:15px max(20px,calc((100% - 1080px)/2));border-bottom:1px solid var(--border);background:#111a2bc9;font-size:12px;font-weight:700;letter-spacing:.18em;color:var(--accent)}
-h1,h2,p,section,body>button,body>pre{max-width:1080px;margin-left:auto;margin-right:auto}h1{font-size:clamp(30px,4vw,44px);padding:35px 20px 0;margin-top:0;margin-bottom:4px;letter-spacing:-.045em}h1 small{font-size:13px;background:var(--raised);border:1px solid var(--border);border-radius:999px;padding:5px 10px;vertical-align:middle;letter-spacing:0;color:var(--accent)}body>p{padding:0 20px 20px;color:var(--muted)}
-section{background:linear-gradient(135deg,#1b2840bb,var(--surface) 52%);border:1px solid var(--border);border-radius:14px;padding:24px;margin:18px auto;box-shadow:0 12px 38px #00000025;width:calc(100% - 40px)}
-h2{font-size:19px;letter-spacing:-.02em;margin:0 0 14px}#providers{color:var(--muted);line-height:2}
-button,input,textarea{font:inherit;border:1px solid var(--border);border-radius:9px;padding:11px 13px;background:var(--raised);color:var(--text)}button{cursor:pointer;font-weight:650;background:linear-gradient(110deg,var(--primary),#536bdc);color:white;border-color:transparent;transition:filter .15s ease,transform .15s ease}button:hover{filter:brightness(1.1)}button:active{transform:translateY(1px)}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--focus);outline-offset:3px}input,textarea{width:100%}label{display:block;margin:12px 0;color:var(--muted);font-size:14px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0a1221;border:1px solid var(--border);padding:15px;border-radius:10px;color:#cae4ed;font-size:13px;max-height:340px;overflow:auto}
-a{color:var(--accent)}@media(min-width:900px){section{width:calc(100% - 40px)}}@media(max-width:480px){section{padding:17px}h1{padding-top:22px}body:before{font-size:10px;letter-spacing:.1em}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;animation:none!important}}
-</style>
-<h1>AI Nexus <small>v0.1</small></h1><p>Local-first discovery and execution. Cloud providers are catalog entries only; no cloud inference is enabled.</p>
-<section><h2>Provider catalog</h2><div id="providers">Loading...</div></section>
-<section><h2>Local discovery</h2><button id="discover">Discover local models</button><pre id="models">Not checked yet</pre></section>
-<section><h2>Test inference</h2><label>Discovered model ID<input id="model" placeholder="Choose an ID returned by discovery"></label><label>Prompt<textarea id="prompt" rows="3">Reply with a short hello.</textarea></label><button id="run">Run local request</button><pre id="result">No request yet</pre></section>
-<script>
-async function req(path,options){let r=await fetch(path,options);let j=await r.json();if(!r.ok)throw Error(j.error||r.status);return j}
-(async()=>{try{let p=await req('/providers');document.querySelector('#providers').textContent=p.map(x=>x.name).join(' · ')}catch(e){document.querySelector('#providers').textContent=e.message}})();
-document.querySelector('#discover').onclick=async()=>{let el=document.querySelector('#models');el.textContent='Checking...';try{let v=await req('/discover/local',{method:'POST'});el.textContent=JSON.stringify(v,null,2);if(v.models[0])document.querySelector('#model').value=v.models[0].id}catch(e){el.textContent=e.message}};
-document.querySelector('#run').onclick=async()=>{let el=document.querySelector('#result');el.textContent='Running...';try{let v=await req('/execute',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({model:document.querySelector('#model').value,prompt:document.querySelector('#prompt').value})});el.textContent=JSON.stringify(v,null,2)}catch(e){el.textContent=e.message}};
-</script></html>"""
+HTML = (Path(__file__).with_name("ui.html")).read_text(encoding="utf-8")
 
 
 def database():
