@@ -96,6 +96,29 @@ class OfflineIntegration(unittest.TestCase):
         self.assertIn("search", capabilities)
         self.assertIn("tools", capabilities)
 
+    def test_public_model_search_pagination_and_freshness(self):
+        with closing(nexus.database()) as con:
+            now = int(__import__("time").time())
+            for name, context, age in (("alpha", 8000, 0), ("alphabet", None, 8000), ("beta", 16000, 0)):
+                con.execute("INSERT INTO public_models VALUES (?,?,?,?,?)",
+                            ("openrouter", name, context, now-age, "https://openrouter.ai/api/v1/models"))
+            con.commit()
+        code, data, _ = self.request("/discovery/public?limit=1&offset=0&q=alpha")
+        self.assertEqual(code, 200)
+        self.assertEqual(data["total"], 2)
+        self.assertEqual(data["models"][0]["id"], "alpha")
+        self.assertFalse(data["models"][0]["stale"])
+        code, data, _ = self.request("/discovery/public?limit=1&offset=1&q=alpha")
+        self.assertEqual(code, 200)
+        self.assertEqual(data["models"][0]["id"], "alphabet")
+        self.assertTrue(data["models"][0]["stale"])
+        self.assertIsNone(data["models"][0]["context_window"])
+        code, _, _ = self.request("/discovery/public?limit=500")
+        self.assertEqual(code, 400)
+        code, data, _ = self.request("/discovery/public?q=%25")
+        self.assertEqual(code, 200)
+        self.assertEqual(data["total"], 0)
+
     def test_discover_execute_persist(self):
         code, result, _ = self.request("/discover/local", {})
         self.assertEqual(code, 200)
